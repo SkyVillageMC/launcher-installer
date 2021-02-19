@@ -11,7 +11,6 @@ import (
 
 	"fyne.io/fyne"
 	"fyne.io/fyne/app"
-	"fyne.io/fyne/driver/desktop"
 	"fyne.io/fyne/widget"
 )
 
@@ -31,8 +30,6 @@ func main() {
 	} else {
 		launchInstaller()
 	}
-	//go startInstaller()
-	//startSplash()
 }
 
 func startInstaller() {
@@ -74,21 +71,6 @@ func checkLauncher() {
 		downloadLauncher()
 	}
 	launch()
-}
-
-func startSplash() {
-	a = app.NewWithID("hu.bendi.skylauncher")
-
-	log.Println("Starting splash screen...")
-	drv := a.Driver().(desktop.Driver)
-	w := drv.CreateSplashWindow()
-
-	w.SetFixedSize(true)
-	w.CenterOnScreen()
-
-	w.SetContent(widget.NewLabel("SkyLauncher\n   Loading..."))
-	w.ShowAndRun()
-	defer w.Hide()
 }
 
 func unzip(from string, targetDir string) {
@@ -232,16 +214,24 @@ func launchInstaller() {
 	w.Resize(fyne.NewSize(300, 200))
 
 	w.ShowAndRun()
+	defer w.Close()
 }
 
 func installingInProgress(window *fyne.Window) {
 
 	(*window).Resize(fyne.NewSize(300, 190))
 
-	label := widget.NewLabelWithStyle(" \n \n \nTelepítés!\n \n \n ", fyne.TextAlignCenter, fyne.TextStyle{Bold: true})
+	label1 := widget.NewLabelWithStyle(" \n \nTelepítés!", fyne.TextAlignCenter, fyne.TextStyle{Bold: true})
+	label2 := widget.NewLabelWithStyle("Felkészülés...\n \n ", fyne.TextAlignCenter, fyne.TextStyle{Bold: false})
 	progress := widget.NewProgressBar()
 
 	(*window).SetContent(widget.NewVBox(
-		label,
-		progress))
+		label1,
+		label2,
+		progress,
+	))
+
+	go func() {
+
+	}()
 }
