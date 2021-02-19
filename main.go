@@ -15,9 +15,30 @@ import (
 )
 
 var (
-	data *string
-	a    fyne.App
+	data     *string
+	a        fyne.App
+	progress float64
+	pBar     *widget.ProgressBar
+	pSize    uint64
+	pOffset  float32
 )
+
+type WriteCounter struct {
+	Total uint64
+	Max   uint64
+}
+
+func (wc *WriteCounter) Write(p []byte) (int, error) {
+	n := len(p)
+	wc.Total += uint64(n)
+	wc.PrintProgress()
+	return n, nil
+}
+
+func (wc WriteCounter) PrintProgress() {
+	progress = float64(wc.Total) / float64(wc.Max)
+	(*pBar).SetValue((progress / 10 * float64(pSize)) + float64(pOffset))
+}
 
 func main() {
 	log.Println("Launching SkyLauncher")
@@ -44,7 +65,6 @@ func startInstaller() {
 	}
 	log.Println("Found .skyvillage!")
 	checkJava()
-	checkLauncher()
 }
 
 func launch() {
@@ -56,21 +76,15 @@ func launch() {
 	proc.Env = env
 
 	proc.Stdout = os.Stdout
+	proc.Stderr = os.Stderr
 
-	err := proc.Start()
+	//TODO change to start
+	err := proc.Run()
 
 	if err != nil {
-		log.Fatalf("Error: %e", err.Error())
+		log.Fatalf("Error: %s", err.Error())
 	}
 	os.Exit(0)
-}
-
-func checkLauncher() {
-	data := os.Getenv("APPDATA")
-	if !exists(data + "\\.skyvillage\\launcher.jar") {
-		downloadLauncher()
-	}
-	launch()
 }
 
 func unzip(from string, targetDir string) {
@@ -104,20 +118,21 @@ func unzip(from string, targetDir string) {
 				file.Mode(),
 			)
 			if err != nil {
-				log.Fatal(err)
+				log.Println(err)
 			}
 			defer outputFile.Close()
 
 			_, err = io.Copy(outputFile, zippedFile)
 			if err != nil {
-				log.Fatal(err)
+				log.Println(err)
 			}
 		}
 	}
 }
 
 func downloadLauncher() {
-	downloadFile(*data+"\\.skyvillage\\launcher.jar", "https://www.dropbox.com/s/jki9u6ecbxzu6er/skylauncher-0.1-SNAPSHOT.jar?dl=1")
+	url := "https://www.dropbox.com/s/jki9u6ecbxzu6er/skylauncher-0.1-SNAPSHOT.jar?dl=1"
+	downloadFile(*data+"\\.skyvillage\\launcher.jar", url, 3, 0.7)
 }
 
 func downloadJava() {
@@ -125,20 +140,20 @@ func downloadJava() {
 	url := "https://www.dropbox.com/s/j9wniroiggs5vkn/java.zip?dl=1"
 	erro := mdIfNotPresent(*data + "\\.skyvillage\\tmp")
 	if erro != nil {
-		log.Fatalln("Error creating directory")
-		log.Fatalf("Error: %s", erro)
+		log.Println("Error creating directory")
+		log.Println("Error: ", erro)
 		os.Exit(500)
 	}
-	err := downloadFile(*data+"\\.skyvillage\\tmp\\java.zip", url)
+	err := downloadFile(*data+"\\.skyvillage\\tmp\\java.zip", url, 7, 0)
 	if err != nil {
-		log.Fatalf("Error: %s", err)
-		log.Fatalln("Error while downloading java. Please contact support.")
+		log.Printf("Error: %s", err)
+		log.Println("Error while downloading java. Please contact support.")
 	}
 	log.Println("Installing java...")
 	unzip(*data+"\\.skyvillage\\tmp\\java.zip", *data+"\\.skyvillage\\")
 	rErro := os.Remove(*data + "\\.skyvillage\\tmp\\java.zip")
 	if rErro != nil {
-		log.Fatalln("Error deleting file")
+		log.Println("Error deleting file")
 	}
 	checkJava()
 }
@@ -159,36 +174,53 @@ func mdIfNotPresent(filepath string) error {
 	return err
 }
 
-func downloadFile(filepath string, url string) error {
+func downloadFile(filepath string, url string, size uint64, offset float32) error {
+	pSize = size
+	pOffset = offset
+	out, err := os.Create(filepath + ".tmp")
+	if err != nil {
+		return err
+	}
+
 	resp, err := http.Get(url)
 	if err != nil {
+		out.Close()
 		return err
 	}
 	defer resp.Body.Close()
 
-	out, err := os.Create(filepath)
-	if err != nil {
+	counter := &WriteCounter{}
+	counter.Max = uint64(resp.ContentLength)
+
+	if _, err = io.Copy(out, io.TeeReader(resp.Body, counter)); err != nil {
+		out.Close()
 		return err
 	}
-	defer out.Close()
 
-	_, err = io.Copy(out, resp.Body)
-	return err
+	out.Close()
+
+	if err = os.Rename(filepath+".tmp", filepath); err != nil {
+		return err
+	}
+	return nil
 }
-func checkJava() {
+
+func checkJava() bool {
 	data := os.Getenv("APPDATA")
 	_, err := os.Stat(data + "\\.skyvillage\\java\\bin\\java.exe")
 	if err != nil {
 		log.Println("Java not found, downloading...")
-		downloadJava()
-	} else {
-		proc := exec.Command(data+"\\.skyvillage\\java\\bin\\java.exe", "--version")
-		erro := proc.Start()
-		if erro != nil {
-			log.Println("Java corrupted, downloading...")
-			downloadJava()
-		}
+		return false
 	}
+
+	proc := exec.Command(data+"\\.skyvillage\\java\\bin\\java.exe", "--version")
+	erro := proc.Start()
+	if erro != nil {
+		log.Println("Java corrupted, downloading...")
+		return false
+	}
+	return true
+
 }
 
 func launchInstaller() {
@@ -214,7 +246,6 @@ func launchInstaller() {
 	w.Resize(fyne.NewSize(300, 200))
 
 	w.ShowAndRun()
-	defer w.Close()
 }
 
 func installingInProgress(window *fyne.Window) {
@@ -232,6 +263,49 @@ func installingInProgress(window *fyne.Window) {
 	))
 
 	go func() {
-
+		var fileInfo, err = os.Stat(*data + "\\.skyvillage")
+		if err != nil || !fileInfo.IsDir() {
+			error := os.Mkdir(*data+"\\.skyvillage", os.ModeDir)
+			if error != nil {
+				log.Fatalln("Can not create directory .skyvillage")
+				showErrorScreen(window)
+			}
+		}
+		pBar = progress
+		progress.SetValue(0)
+		label2.SetText("Java telepítése...\nEz eltarthat pár percig. \n ")
+		downloadJava()
+		label2.SetText("Launcher telepítése...\n \n ")
+		downloadLauncher()
+		label2.SetText("Kész!\n \n ")
+		showDoneScreen(window)
 	}()
+}
+
+func showDoneScreen(window *fyne.Window) {
+	label1 := widget.NewLabelWithStyle(" \n \nA telepítés sikeres!", fyne.TextAlignCenter, fyne.TextStyle{Bold: true})
+	label2 := widget.NewLabelWithStyle("Most már bezárhetod ezt az ablakot...\n \n ", fyne.TextAlignCenter, fyne.TextStyle{Bold: false})
+	closeBtn := widget.NewButton("Bezárás", func() {
+		a.Quit()
+	})
+	(*window).SetContent(widget.NewVBox(
+		label1,
+		label2,
+		closeBtn,
+	))
+	(*window).Resize(fyne.NewSize(300, 185))
+}
+
+func showErrorScreen(window *fyne.Window) {
+	label1 := widget.NewLabelWithStyle(" \n \nA telepítés sikertelen!", fyne.TextAlignCenter, fyne.TextStyle{Bold: true})
+	label2 := widget.NewLabelWithStyle("Vedd fel velünk a kapcsolatot...\n \n ", fyne.TextAlignCenter, fyne.TextStyle{Bold: false})
+	closeBtn := widget.NewButton("Bezárás", func() {
+		a.Quit()
+	})
+	(*window).SetContent(widget.NewVBox(
+		label1,
+		label2,
+		closeBtn,
+	))
+	(*window).Resize(fyne.NewSize(300, 185))
 }
