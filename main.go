@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"syscall"
 
 	"fyne.io/fyne"
 	"fyne.io/fyne/app"
@@ -74,17 +75,18 @@ func launch() {
 	env = append(proc.Env, "JAVA_HOME="+*data+"\\.skyvillage\\java")
 	env = append(env, "APPDATA="+*data)
 	proc.Env = env
+	proc.SysProcAttr = &syscall.SysProcAttr{
+		CreationFlags: syscall.CREATE_UNICODE_ENVIRONMENT,
+	}
 
 	proc.Stdout = os.Stdout
 	proc.Stderr = os.Stderr
 
-	//TODO change to start
 	err := proc.Run()
 
 	if err != nil {
 		log.Fatalf("Error: %s", err.Error())
 	}
-	os.Exit(0)
 }
 
 func unzip(from string, targetDir string) {
@@ -131,8 +133,8 @@ func unzip(from string, targetDir string) {
 }
 
 func downloadLauncher() {
-	url := "https://www.dropbox.com/s/jki9u6ecbxzu6er/skylauncher-0.1-SNAPSHOT.jar?dl=1"
-	downloadFile(*data+"\\.skyvillage\\launcher.jar", url, 3, 0.7)
+	url := "https://bendimester23.tk/assets/launcher.jar"
+	downloadFile(*data+"\\.skyvillage\\launcher.jar", url, 2, 0.7)
 }
 
 func downloadJava() {
@@ -220,7 +222,6 @@ func checkJava() bool {
 		return false
 	}
 	return true
-
 }
 
 func launchInstaller() {
@@ -277,6 +278,18 @@ func installingInProgress(window *fyne.Window) {
 		downloadJava()
 		label2.SetText("Launcher telepítése...\n \n ")
 		downloadLauncher()
+		label2.SetText("Ikon létrehozása...\n \n ")
+		downloadFile(*data+"\\.skyvillage\\icon.ico", "https://bendimester23.tk/assets/icon.ico", 0, 0.9)
+		downloadFile(*data+"\\.skyvillage\\shortcut.js", "https://gist.githubusercontent.com/Bendimester23/1127a4105d50c68be610d548bef2bec3/raw/4c5e3edef1595e21f7e29ddd47a9e67251b6d14a/makeshortcut.js", 1, 0.9)
+		cmd := exec.Command("wscript", *data+"\\.skyvillage\\shortcut.js")
+		erro := cmd.Run()
+		if erro != nil {
+			log.Println(err)
+		}
+		rErro := os.Remove(*data + "\\.skyvillage\\shortcut.js")
+		if rErro != nil {
+			log.Println("Error deleting file")
+		}
 		label2.SetText("Kész!\n \n ")
 		showDoneScreen(window)
 	}()
