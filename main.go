@@ -255,13 +255,20 @@ func installingInProgress(window *fyne.Window) {
 			log.Println(erro)
 			showErrorScreen(window)
 		}
-		rErro := os.Remove(*data + "\\.skyvillage\\shortcut.js")
-		if rErro != nil {
-			log.Println("Error deleting file")
-		}
+		remove(*data + "\\.skyvillage\\shortcut.js")
+		remove(*data + "\\.skyvillage\\tmp")
+		cwd, _ := os.Getwd()
+		remove(cwd + "\\SkyVillage")
 		label2.SetText("Kész!\n \n ")
 		showDoneScreen(window)
 	}()
+}
+
+func remove(file string) {
+	err := os.Remove(file)
+	if err != nil {
+		log.Println("Error deleting file")
+	}
 }
 
 func showDoneScreen(window *fyne.Window) {
