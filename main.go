@@ -55,20 +55,6 @@ func main() {
 	}
 }
 
-func startInstaller() {
-	//Check if .skyvillage exists
-	var fileInfo, err = os.Stat(*data + "\\.skyvillage")
-	if err != nil || !fileInfo.IsDir() {
-		error := os.Mkdir(*data+"\\.skyvillage", os.ModeDir)
-		if error != nil {
-			log.Fatalln("Can not create directory .skyvillage")
-			os.Exit(500)
-		}
-	}
-	log.Println("Found .skyvillage!")
-	checkJava()
-}
-
 func launch() {
 	proc := exec.Command(*data+"\\.skyvillage\\java\\jre\\bin\\java.exe", "-cp", *data+"\\.skyvillage\\launcher.jar", "hu.bendi.skylauncher.Launcher")
 	env := proc.Env
@@ -158,7 +144,6 @@ func downloadJava() {
 	if rErro != nil {
 		log.Println("Error deleting file")
 	}
-	checkJava()
 }
 
 func exists(filepath string) bool {
@@ -210,23 +195,6 @@ func downloadFile(filepath string, url string, size uint64, offset float32) erro
 		return err
 	}
 	return nil
-}
-
-func checkJava() bool {
-	data := os.Getenv("APPDATA")
-	_, err := os.Stat(data + "\\.skyvillage\\java\\bin\\java.exe")
-	if err != nil {
-		log.Println("Java not found, downloading...")
-		return false
-	}
-
-	proc := exec.Command(data+"\\.skyvillage\\java\\bin\\java.exe", "--version")
-	erro := proc.Start()
-	if erro != nil {
-		log.Println("Java corrupted, downloading...")
-		return false
-	}
-	return true
 }
 
 func launchInstaller() {
@@ -285,6 +253,7 @@ func installingInProgress(window *fyne.Window) {
 		erro := cmd.Run()
 		if erro != nil {
 			log.Println(erro)
+			showErrorScreen(window)
 		}
 		rErro := os.Remove(*data + "\\.skyvillage\\shortcut.js")
 		if rErro != nil {
@@ -311,7 +280,7 @@ func showDoneScreen(window *fyne.Window) {
 
 func showErrorScreen(window *fyne.Window) {
 	label1 := widget.NewLabelWithStyle(" \n \nA telepítés sikertelen!", fyne.TextAlignCenter, fyne.TextStyle{Bold: true})
-	label2 := widget.NewLabelWithStyle("Vedd fel velünk a kapcsolatot...\n \n ", fyne.TextAlignCenter, fyne.TextStyle{Bold: false})
+	label2 := widget.NewLabelWithStyle("Vedd fel velünk a kapcsolatot...\nDC: dc.skyvillage.gq \n ", fyne.TextAlignCenter, fyne.TextStyle{Bold: false})
 	closeBtn := widget.NewButton("Bezárás", func() {
 		a.Quit()
 	})
