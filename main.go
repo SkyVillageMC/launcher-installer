@@ -22,6 +22,7 @@ var (
 	pBar     *widget.ProgressBar
 	pSize    uint64
 	pOffset  float32
+	win      *fyne.Window
 )
 
 type WriteCounter struct {
@@ -171,7 +172,11 @@ func exists(filepath string) bool {
 func mdIfNotPresent(filepath string) error {
 	_, err := os.Stat(filepath)
 	if err != nil {
-		os.MkdirAll(filepath, os.ModeDir)
+		erro := os.MkdirAll(filepath, os.ModeDir)
+		if erro != nil {
+			showErrorScreen(win)
+			log.Panicln(erro)
+		}
 	}
 	return err
 }
@@ -230,6 +235,7 @@ func launchInstaller() {
 	log.Println("Starting installer...")
 	drv := a.Driver()
 	w := drv.CreateWindow("SkyVillage Telepítő")
+	win = &w
 
 	w.CenterOnScreen()
 	w.SetFixedSize(true)
@@ -264,14 +270,8 @@ func installingInProgress(window *fyne.Window) {
 	))
 
 	go func() {
-		var fileInfo, err = os.Stat(*data + "\\.skyvillage")
-		if err != nil || !fileInfo.IsDir() {
-			error := os.Mkdir(*data+"\\.skyvillage", os.ModeDir)
-			if error != nil {
-				log.Fatalln("Can not create directory .skyvillage")
-				showErrorScreen(window)
-			}
-		}
+		mdIfNotPresent(*data + "\\.skyvillage")
+		mdIfNotPresent(*data + "\\.skyvillage\\tmp")
 		pBar = progress
 		progress.SetValue(0)
 		label2.SetText("Java telepítése...\nEz eltarthat pár percig. \n ")
@@ -284,7 +284,7 @@ func installingInProgress(window *fyne.Window) {
 		cmd := exec.Command("wscript", *data+"\\.skyvillage\\shortcut.js")
 		erro := cmd.Run()
 		if erro != nil {
-			log.Println(err)
+			log.Println(erro)
 		}
 		rErro := os.Remove(*data + "\\.skyvillage\\shortcut.js")
 		if rErro != nil {
